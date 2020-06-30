@@ -37,7 +37,7 @@ public class StoreClosure implements Closure {
     private static final Logger LOG = Log.logger(StoreClosure.class);
 
     // unit seconds
-    public static final int FUTURE_TIMEOUT = 30;
+    public static final int FUTURE_TIMEOUT = 60;
 
     // the command can be null
     private final StoreCommand command;

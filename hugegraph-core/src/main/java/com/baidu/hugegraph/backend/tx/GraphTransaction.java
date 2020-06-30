@@ -1035,6 +1035,49 @@ public class GraphTransaction extends IndexableTransaction {
     }
 
     @Watched(prefix = "graph")
+    public void addOlapProperty(Id vertex, VertexLabel vertexLabel,
+                                PropertyKey propertyKey, Object value) {
+        // Construct vertex with olap property
+        HugeVertex v = new HugeVertex(this, vertex, vertexLabel);
+        v.property(propertyKey.name(), value);
+
+        // Find olap related index label
+        Id indexLabel = null;
+        SchemaTransaction tx = this.params().schemaTransaction();
+        for (Id ilId : vertexLabel.indexLabels()) {
+            if (tx.getIndexLabel(ilId).indexFields()
+                  .contains(propertyKey.id())) {
+                indexLabel = ilId;
+                break;
+            }
+        }
+
+        // Update index if exist olap related index
+        if (indexLabel != null) {
+            this.indexTx.updateIndex(indexLabel, v, false);
+        }
+
+        // Insert olap property
+        HugeType type = olapType(vertexLabel, propertyKey);
+        BackendEntry entry = this.serializer.writeOlapProperty(type, vertex,
+                                                               propertyKey,
+                                                               value);
+        this.doInsert(entry);
+    }
+
+    // TODO: calculate table using vertex label and property key
+    private HugeType olapType(VertexLabel vertexLabel,
+                              PropertyKey propertyKey) {
+        if (propertyKey.name().contains("pagerank")) {
+            return HugeType.OLAP_PAGERANK;
+        } else if (propertyKey.name().contains("connected")) {
+            return HugeType.OLAP_CONNECTED;
+        } else {
+            return null;
+        }
+    }
+
+    @Watched(prefix = "graph")
     public <V> void addEdgeProperty(HugeEdgeProperty<V> prop) {
         // NOTE: this method can also be used to update property
 

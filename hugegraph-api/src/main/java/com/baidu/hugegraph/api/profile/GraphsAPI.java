@@ -47,6 +47,7 @@ import com.baidu.hugegraph.config.HugeConfig;
 import com.baidu.hugegraph.core.GraphManager;
 import com.baidu.hugegraph.server.RestServer;
 import com.baidu.hugegraph.type.define.GraphMode;
+import com.baidu.hugegraph.type.define.OlapMode;
 import com.baidu.hugegraph.util.E;
 import com.baidu.hugegraph.util.Log;
 import com.codahale.metrics.annotation.Timed;
@@ -159,5 +160,36 @@ public class GraphsAPI extends API {
 
         HugeGraph g = graph(manager, name);
         return ImmutableMap.of("mode", g.mode());
+    }
+
+    @PUT
+    @Timed
+    @Path("{name}/olap_mode")
+    @Consumes(APPLICATION_JSON)
+    @Produces(APPLICATION_JSON_WITH_CHARSET)
+    @RolesAllowed("admin")
+    public Map<String, OlapMode> olapMode(@Context GraphManager manager,
+                                           @PathParam("name") String name,
+                                           OlapMode olapMode) {
+        LOG.debug("Set olap mode to: '{}' of graph '{}'", olapMode, name);
+
+        E.checkArgument(olapMode != null, "Graph olap mode can't be null");
+        HugeGraph g = graph(manager, name);
+        g.olapMode(olapMode);
+        return ImmutableMap.of("olap_mode", olapMode);
+    }
+
+    @GET
+    @Timed
+    @Path("{name}/olap_mode")
+    @Consumes(APPLICATION_JSON)
+    @Produces(APPLICATION_JSON_WITH_CHARSET)
+    @RolesAllowed({"admin", "$owner=$name"})
+    public Map<String, OlapMode> olapMode(@Context GraphManager manager,
+                                           @PathParam("name") String name) {
+        LOG.debug("Get olap mode of graph '{}'", name);
+
+        HugeGraph g = graph(manager, name);
+        return ImmutableMap.of("olap_mode", g.olapMode());
     }
 }

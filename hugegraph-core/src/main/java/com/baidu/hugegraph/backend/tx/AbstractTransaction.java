@@ -19,6 +19,11 @@
 
 package com.baidu.hugegraph.backend.tx;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 
@@ -31,6 +36,7 @@ import com.baidu.hugegraph.backend.query.IdQuery;
 import com.baidu.hugegraph.backend.query.Query;
 import com.baidu.hugegraph.backend.query.QueryResults;
 import com.baidu.hugegraph.backend.serializer.AbstractSerializer;
+import com.baidu.hugegraph.backend.serializer.MergeIterator;
 import com.baidu.hugegraph.backend.store.BackendEntry;
 import com.baidu.hugegraph.backend.store.BackendFeatures;
 import com.baidu.hugegraph.backend.store.BackendMutation;
@@ -43,6 +49,7 @@ import com.baidu.hugegraph.type.define.Action;
 import com.baidu.hugegraph.type.define.GraphMode;
 import com.baidu.hugegraph.util.E;
 import com.baidu.hugegraph.util.Log;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.RateLimiter;
 
 public abstract class AbstractTransaction implements Transaction {
@@ -136,6 +143,7 @@ public abstract class AbstractTransaction implements Transaction {
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Watched(prefix = "tx")
     public QueryResults<BackendEntry> query(Query query) {
         LOG.debug("Transaction query: {}", query);
@@ -151,10 +159,37 @@ public abstract class AbstractTransaction implements Transaction {
 
         this.beforeRead();
         try {
-            return new QueryResults<>(this.store.query(squery), query);
+            Iterator<BackendEntry> entrys = this.store.query(squery);
+            if (graph.olapMode().showOlap() && squery.resultType().isVertex()) {
+                Set<HugeType> types = this.olapProps();
+                List<Iterator<BackendEntry>> iterators =
+                                             new ArrayList<>(types.size());
+                for (HugeType type : types) {
+                    Query q = squery.copy();
+                    q.resultType(type);
+                    iterators.add(this.store.query(q));
+                }
+                entrys = new MergeIterator(entrys, iterators, this::mergable);
+            }
+            return new QueryResults<>(entrys, query);
         } finally {
             this.afterRead(); // TODO: not complete the iteration currently
         }
+    }
+
+    // TODO: change olapProps() to HugeGraph method
+    private Set<HugeType> olapProps() {
+        return ImmutableSet.of(HugeType.OLAP_PAGERANK, HugeType.OLAP_CONNECTED);
+    }
+
+    private Object mergable(Object obj1, Object obj2) {
+        BackendEntry owner = (BackendEntry) obj1;
+        BackendEntry sub = (BackendEntry) obj2;
+        if (!owner.id().equals(sub.id())) {
+            return false;
+        }
+        owner.columns(sub.columns());
+        return true;
     }
 
     @Watched(prefix = "tx")

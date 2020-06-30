@@ -726,6 +726,11 @@ public abstract class RocksDBStore extends AbstractBackendStore<Session> {
             registerTableManager(HugeType.EDGE_IN,
                                  RocksDBTables.Edge.in(database));
 
+            registerTableManager(HugeType.OLAP_PAGERANK,
+                                 new RocksDBTables.OlapPageRank(database));
+            registerTableManager(HugeType.OLAP_CONNECTED,
+                                 new RocksDBTables.OlapConnected(database));
+
             registerTableManager(HugeType.SECONDARY_INDEX,
                                  new RocksDBTables.SecondaryIndex(database));
             registerTableManager(HugeType.VERTEX_LABEL_INDEX,

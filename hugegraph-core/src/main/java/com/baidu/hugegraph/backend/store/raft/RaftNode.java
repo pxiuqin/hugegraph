@@ -58,6 +58,9 @@ public class RaftNode {
 
     private static final Logger LOG = Log.logger(RaftNode.class);
 
+    // unit is ms
+    private static final int WAIT_LEADER_TIMEOUT = 30 * 1000;
+
     private final String group;
     private final StoreStateMachine stateMachine;
     private final Node node;
@@ -152,7 +155,8 @@ public class RaftNode {
         return nodeOptions;
     }
 
-    public void submitCommand(StoreCommand command, StoreClosure closure) {
+    private void submitCommand(StoreCommand command, StoreClosure closure) {
+        this.waitLeader();
         // Sleep a while when raft node is busy
         this.waitIfBusy();
 
@@ -170,6 +174,43 @@ public class RaftNode {
         task.setData(buffer);
         LOG.debug("submit to raft node {}", this.node);
         this.node.apply(task);
+    }
+
+    public Object submitAndWait(StoreCommand command, StoreClosure closure) {
+        this.submitCommand(command, closure);
+        // Here will wait future complete
+        if (closure.throwable() != null) {
+            throw new BackendException(closure.throwable());
+        } else {
+            return closure.data();
+        }
+    }
+
+    private void waitLeader() {
+        if (this.node.getLeaderId() != null) {
+            return;
+        }
+
+        int consumeTime = WAIT_LEADER_TIMEOUT;
+        int sleepInterval = 100;
+        while (consumeTime > 0) {
+            PeerId leaderId = this.node.getLeaderId();
+            if (leaderId != null) {
+                return;
+            } else {
+                try {
+                    Thread.sleep(sleepInterval);
+                } catch (InterruptedException e) {
+                    throw new BackendException(
+                              "Raft group '%s' doesn't elect leader in %s ms",
+                              this.group(), WAIT_LEADER_TIMEOUT - consumeTime);
+                }
+                consumeTime -= sleepInterval;
+            }
+        }
+        throw new BackendException(
+                  "Raft group '%s' doesn't elect leader in %s ms",
+                  this.group(), WAIT_LEADER_TIMEOUT);
     }
 
     private void waitIfBusy() {
@@ -202,6 +243,8 @@ public class RaftNode {
                  this.node.getNodeId(), this.node.getLeaderId());
         assert !this.node.isLeader();
         PeerId leaderId = this.node.getLeaderId();
+        E.checkNotNull(leaderId, "leader id");
+
         StoreCommandRequest.Builder builder = StoreCommandRequest.newBuilder();
         builder.setGroupId(this.group);
         builder.setAction(StoreAction.valueOf(command.action().code()));
@@ -248,6 +291,7 @@ public class RaftNode {
         @Override
         public void onCreated(PeerId peer) {
             // pass
+            LOG.info("The node {} replicator has created", peer);
         }
 
         @Override

@@ -57,7 +57,9 @@ import com.baidu.hugegraph.backend.query.ConditionQuery;
 import com.baidu.hugegraph.config.HugeConfig;
 import com.baidu.hugegraph.config.ServerOptions;
 import com.baidu.hugegraph.core.GraphManager;
+import com.baidu.hugegraph.define.Checkable;
 import com.baidu.hugegraph.define.UpdateStrategy;
+import com.baidu.hugegraph.exception.NotSupportException;
 import com.baidu.hugegraph.schema.PropertyKey;
 import com.baidu.hugegraph.schema.VertexLabel;
 import com.baidu.hugegraph.structure.HugeVertex;
@@ -71,6 +73,7 @@ import com.baidu.hugegraph.util.JsonUtil;
 import com.baidu.hugegraph.util.Log;
 import com.codahale.metrics.annotation.Timed;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableMap;
 
 @Path("graphs/{graph}/graph/vertices")
 @Singleton
@@ -215,6 +218,48 @@ public class VertexAPI extends BatchAPI {
         commit(g, () -> updateProperties(vertex, jsonVertex, append));
 
         return manager.serializer(g).writeVertex(vertex);
+    }
+
+    @PUT
+    @Timed(name = "olap-batch")
+    @Decompress
+    @Path("olap/batch")
+    @Consumes(APPLICATION_JSON)
+    @Produces(APPLICATION_JSON_WITH_CHARSET)
+    @RolesAllowed({"admin", "$owner=$graph $action=vertex_write"})
+    public String update(@Context HugeConfig config,
+                         @Context GraphManager manager,
+                         @PathParam("graph") String graph,
+                         BatchOlapPropertyRequest request) {
+        BatchOlapPropertyRequest.checkUpdate(request);
+        LOG.debug("Graph [{}] update vertices: {}", graph, request);
+        checkUpdatingBody(request.vertices);
+        int max = config.get(ServerOptions.MAX_VERTICES_PER_BATCH);
+        int size = request.vertices.size();
+        E.checkArgument(0 < size && size <= max,
+                        "The size of vertices must > 0 and <= %s," +
+                        "but got '%s'", max, size);
+
+        HugeGraph g = graph(manager, graph);
+        if (!g.backendStoreFeatures().supportsOlapProperties()) {
+            throw new NotSupportException("olap property for backend '%s'",
+                                          g.backend());
+        }
+
+        PropertyKey pk = g.propertyKey(request.propertyKey);
+        E.checkArgument(pk.olap(),
+                        "Invalid property key '%s' with olap false", pk);
+
+        return this.commit(config, g, size, () -> {
+            request.vertices.forEach(vertex -> {
+                Id vid = HugeVertex.getIdValue(vertex.id);
+                VertexLabel vl = g.vertexLabel(vertex.label);
+                Object value = pk.validValue(vertex.value);
+                g.addOlapProperty(vid, vl, pk, value);
+            });
+            return manager.serializer(g).writeMap(ImmutableMap.of("size",
+                                                                  size));
+        });
     }
 
     @GET
@@ -402,6 +447,7 @@ public class VertexAPI extends BatchAPI {
             E.checkArgumentNotNull(req, "BatchVertexRequest can't be null");
             E.checkArgumentNotNull(req.jsonVertices,
                                    "Parameter 'vertices' can't be null");
+
             E.checkArgument(req.updateStrategies != null &&
                             !req.updateStrategies.isEmpty(),
                             "Parameter 'update_strategies' can't be empty");
@@ -416,6 +462,27 @@ public class VertexAPI extends BatchAPI {
                                  "updateStrategies=%s,createIfNotExist=%s}",
                                  this.jsonVertices, this.updateStrategies,
                                  this.createIfNotExist);
+        }
+    }
+
+    private static class BatchOlapPropertyRequest {
+
+        @JsonProperty("vertices")
+        public List<OlapVertex> vertices;
+        @JsonProperty("property_key")
+        public String propertyKey;
+
+        private static void checkUpdate(BatchOlapPropertyRequest req) {
+            E.checkArgument(req.propertyKey != null &&
+                            !req.propertyKey.isEmpty(),
+                            "The propertyKey can't be null or empty");
+        }
+
+        @Override
+        public String toString() {
+            return String.format("BatchOlapPropertyRequest{vertices=%s," +
+                                 "propertyKey=%s}",
+                                 this.vertices, this.propertyKey);
         }
     }
 
@@ -459,6 +526,39 @@ public class VertexAPI extends BatchAPI {
         public String toString() {
             return String.format("JsonVertex{label=%s, properties=%s}",
                                  this.label, this.properties);
+        }
+    }
+
+    private static class OlapVertex implements Checkable {
+
+        @JsonProperty("id")
+        public Object id;
+        @JsonProperty("label")
+        public String label;
+        @JsonProperty("value")
+        public Object value;
+
+        @Override
+        public void checkCreate(boolean isBatch) {
+            E.checkArgumentNotNull(this.label,
+                                   "The label of vertex can't be null");
+            this.checkUpdate();
+        }
+
+        @Override
+        public void checkUpdate() {
+            E.checkArgumentNotNull(this.id,
+                                   "The id of vertex can't be null");
+            E.checkArgumentNotNull(this.label,
+                                   "The label of vertex can't be null");
+            E.checkArgumentNotNull(this.value,
+                                   "The value of vertex can't be null");
+        }
+
+        @Override
+        public String toString() {
+            return String.format("OlapVertex{id=%s, label=%s, value=%s}",
+                                 this.id, this.label, this.value);
         }
     }
 }

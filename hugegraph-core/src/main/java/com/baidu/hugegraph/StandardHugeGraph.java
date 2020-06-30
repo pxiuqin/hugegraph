@@ -78,6 +78,7 @@ import com.baidu.hugegraph.task.TaskScheduler;
 import com.baidu.hugegraph.type.HugeType;
 import com.baidu.hugegraph.type.define.GraphMode;
 import com.baidu.hugegraph.type.define.NodeRole;
+import com.baidu.hugegraph.type.define.OlapMode;
 import com.baidu.hugegraph.util.DateUtil;
 import com.baidu.hugegraph.util.E;
 import com.baidu.hugegraph.util.LockUtil;
@@ -103,6 +104,7 @@ public class StandardHugeGraph implements HugeGraph {
 
     private volatile boolean closed;
     private volatile GraphMode mode;
+    private volatile OlapMode olapMode;
     private volatile HugeVariables variables;
 
     private final String name;
@@ -142,6 +144,7 @@ public class StandardHugeGraph implements HugeGraph {
         this.name = configuration.get(CoreOptions.STORE);
         this.closed = false;
         this.mode = GraphMode.NONE;
+        this.olapMode = OlapMode.VERTEX_ONLY;
 
         LockUtil.init(this.name);
 
@@ -223,6 +226,16 @@ public class StandardHugeGraph implements HugeGraph {
     @Override
     public void mode(GraphMode mode) {
         this.mode = mode;
+    }
+
+    @Override
+    public OlapMode olapMode() {
+        return this.olapMode;
+    }
+
+    @Override
+    public void olapMode(OlapMode olapMode) {
+        this.olapMode = olapMode;
     }
 
     @Override
@@ -413,6 +426,13 @@ public class StandardHugeGraph implements HugeGraph {
     @Override
     public <V> void removeVertexProperty(VertexProperty<V> p) {
         this.graphTransaction().removeVertexProperty((HugeVertexProperty<V>) p);
+    }
+
+    @Override
+    public void addOlapProperty(Id vertex, VertexLabel vertexLabel,
+                                PropertyKey propertyKey, Object value) {
+        this.graphTransaction().addOlapProperty(vertex, vertexLabel,
+                                                propertyKey, value);
     }
 
     @Override
@@ -805,6 +825,11 @@ public class StandardHugeGraph implements HugeGraph {
         @Override
         public GraphMode mode() {
             return StandardHugeGraph.this.mode();
+        }
+
+        @Override
+        public OlapMode olapMode() {
+            return StandardHugeGraph.this.olapMode();
         }
 
         @Override

@@ -43,6 +43,7 @@ import com.baidu.hugegraph.backend.query.IdRangeQuery;
 import com.baidu.hugegraph.backend.query.Query;
 import com.baidu.hugegraph.backend.store.BackendEntry;
 import com.baidu.hugegraph.backend.tx.GraphIndexTransaction;
+import com.baidu.hugegraph.exception.NotSupportException;
 import com.baidu.hugegraph.schema.EdgeLabel;
 import com.baidu.hugegraph.schema.IndexLabel;
 import com.baidu.hugegraph.schema.PropertyKey;
@@ -341,6 +342,12 @@ public class TextSerializer extends AbstractSerializer {
         }
 
         return vertex;
+    }
+
+    @Override
+    public BackendEntry writeOlapProperty(HugeType type, Id vertex,
+                                          PropertyKey pk, Object value) {
+        throw new NotSupportException("writeOlapProperty");
     }
 
     @Override

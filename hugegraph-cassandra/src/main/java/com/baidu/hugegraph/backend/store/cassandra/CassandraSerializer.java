@@ -34,6 +34,7 @@ import com.baidu.hugegraph.backend.serializer.BytesBuffer;
 import com.baidu.hugegraph.backend.serializer.TableBackendEntry;
 import com.baidu.hugegraph.backend.serializer.TableSerializer;
 import com.baidu.hugegraph.backend.store.BackendEntry;
+import com.baidu.hugegraph.exception.NotSupportException;
 import com.baidu.hugegraph.schema.PropertyKey;
 import com.baidu.hugegraph.schema.SchemaElement;
 import com.baidu.hugegraph.structure.HugeElement;
@@ -185,5 +186,11 @@ public class CassandraSerializer extends TableSerializer {
             Object value = JsonUtil.fromJson(e.getValue(), Object.class);
             schema.userdata(key, value);
         }
+    }
+
+    @Override
+    public BackendEntry writeOlapProperty(HugeType type, Id vertex,
+                                          PropertyKey pk, Object value) {
+        throw new NotSupportException("writeOlapProperty");
     }
 }

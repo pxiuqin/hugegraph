@@ -85,6 +85,7 @@ import com.baidu.hugegraph.type.HugeType;
 import com.baidu.hugegraph.type.Namifiable;
 import com.baidu.hugegraph.type.define.GraphMode;
 import com.baidu.hugegraph.type.define.NodeRole;
+import com.baidu.hugegraph.type.define.OlapMode;
 import com.baidu.hugegraph.util.E;
 import com.baidu.hugegraph.util.Log;
 
@@ -375,6 +376,13 @@ public final class HugeGraphAuthProxy implements HugeGraph {
     }
 
     @Override
+    public void addOlapProperty(Id vertex, VertexLabel vertexLabel,
+                                PropertyKey propertyKey, Object value) {
+        verifyPermission(HugePermission.WRITE, ResourceType.VERTEX);
+        this.hugegraph.addOlapProperty(vertex, vertexLabel, propertyKey, value);
+    }
+
+    @Override
     public Edge addEdge(Edge edge) {
         return verifyElemPermission(HugePermission.WRITE, () -> {
             return (HugeEdge) this.hugegraph.addEdge(edge);
@@ -561,6 +569,18 @@ public final class HugeGraphAuthProxy implements HugeGraph {
     public void mode(GraphMode mode) {
         this.verifyPermission(HugePermission.WRITE, ResourceType.STATUS);
         this.hugegraph.mode(mode);
+    }
+
+    @Override
+    public OlapMode olapMode() {
+        this.verifyPermission(HugePermission.READ, ResourceType.STATUS);
+        return this.hugegraph.olapMode();
+    }
+
+    @Override
+    public void olapMode(OlapMode olapMode) {
+        this.verifyPermission(HugePermission.WRITE, ResourceType.STATUS);
+        this.hugegraph.olapMode(olapMode);
     }
 
     @Override

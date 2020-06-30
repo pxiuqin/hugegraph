@@ -148,6 +148,34 @@ public class RocksDBTables {
         }
     }
 
+    public static class OlapPageRank extends RocksDBTable {
+
+        public static final String TABLE = HugeType.OLAP_PAGERANK.string();
+
+        public OlapPageRank(String database) {
+            super(database, TABLE);
+        }
+
+        @Override
+        protected BackendColumnIterator queryById(Session session, Id id) {
+            return this.getById(session, id);
+        }
+    }
+
+    public static class OlapConnected extends RocksDBTable {
+
+        public static final String TABLE = HugeType.OLAP_CONNECTED.string();
+
+        public OlapConnected(String database) {
+            super(database, TABLE);
+        }
+
+        @Override
+        protected BackendColumnIterator queryById(Session session, Id id) {
+            return this.getById(session, id);
+        }
+    }
+
     public static class IndexTable extends RocksDBTable {
 
         public IndexTable(String database, String table) {

@@ -30,6 +30,8 @@ import com.baidu.hugegraph.backend.id.IdGenerator;
 import com.baidu.hugegraph.backend.serializer.TableBackendEntry;
 import com.baidu.hugegraph.backend.serializer.TableSerializer;
 import com.baidu.hugegraph.backend.store.BackendEntry;
+import com.baidu.hugegraph.exception.NotSupportException;
+import com.baidu.hugegraph.schema.PropertyKey;
 import com.baidu.hugegraph.schema.SchemaElement;
 import com.baidu.hugegraph.structure.HugeElement;
 import com.baidu.hugegraph.structure.HugeProperty;
@@ -161,5 +163,11 @@ public class MysqlSerializer extends TableSerializer {
         for (Map.Entry<String, Object> e : userdata.entrySet()) {
             schema.userdata(e.getKey(), e.getValue());
         }
+    }
+
+    @Override
+    public BackendEntry writeOlapProperty(HugeType type, Id vertex,
+                                          PropertyKey pk, Object value) {
+        throw new NotSupportException("writeOlapProperty");
     }
 }

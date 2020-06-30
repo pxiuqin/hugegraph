@@ -52,6 +52,7 @@ import com.baidu.hugegraph.type.HugeType;
 import com.baidu.hugegraph.type.define.Action;
 import com.baidu.hugegraph.type.define.GraphMode;
 import com.baidu.hugegraph.type.define.NodeRole;
+import com.baidu.hugegraph.type.define.OlapMode;
 import com.baidu.hugegraph.type.define.SerialEnum;
 
 /**
@@ -102,6 +103,8 @@ public interface HugeGraph extends Graph {
     public void removeVertex(Vertex vertex);
     public <V> void addVertexProperty(VertexProperty<V> property);
     public <V> void removeVertexProperty(VertexProperty<V> property);
+    public void addOlapProperty(Id vertex, VertexLabel vertexLabel,
+                                PropertyKey propertyKey, Object value);
 
     public Edge addEdge(Edge edge);
     public void canAddEdge(Edge edge);
@@ -128,6 +131,9 @@ public interface HugeGraph extends Graph {
 
     public GraphMode mode();
     public void mode(GraphMode mode);
+
+    public OlapMode olapMode();
+    public void olapMode(OlapMode olapMode);
 
     public void serverStarted(Id serverId, NodeRole serverRole);
     public boolean closed();

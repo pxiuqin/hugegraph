@@ -20,6 +20,7 @@
 package com.baidu.hugegraph.backend.serializer;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -305,7 +306,6 @@ public class BinarySerializer extends AbstractSerializer {
         }
     }
 
-
     protected void parseVertex(byte[] value, HugeVertex vertex) {
         BytesBuffer buffer = BytesBuffer.wrap(value);
 
@@ -320,6 +320,12 @@ public class BinarySerializer extends AbstractSerializer {
         if (vertex.hasTtl()) {
             this.parseExpiredTime(buffer, vertex);
         }
+    }
+
+    protected void parseVertexOlap(byte[] value, HugeVertex vertex) {
+        BytesBuffer buffer = BytesBuffer.wrap(value);
+        Id pkeyId = IdGenerator.of(buffer.readVInt());
+        this.parseProperty(pkeyId, buffer, vertex);
     }
 
     protected void parseColumn(BackendColumn col, HugeVertex vertex) {
@@ -440,8 +446,10 @@ public class BinarySerializer extends AbstractSerializer {
         Id vid = id.edge() ? ((EdgeId) id).ownerVertexId() : id;
         HugeVertex vertex = new HugeVertex(graph, vid, VertexLabel.NONE);
 
+        Iterator<BackendColumn> iterator = entry.columns().iterator();
         // Parse all properties and edges of a Vertex
-        for (BackendColumn col : entry.columns()) {
+        for (int index = 0; iterator.hasNext(); index++) {
+            BackendColumn col = iterator.next();
             if (entry.type().isEdge()) {
                 // NOTE: the entry id type is vertex even if entry type is edge
                 // Parse vertex edges
@@ -449,12 +457,32 @@ public class BinarySerializer extends AbstractSerializer {
             } else {
                 assert entry.type().isVertex();
                 // Parse vertex properties
-                assert entry.columnsSize() == 1 : entry.columnsSize();
-                this.parseVertex(col.value, vertex);
+                assert entry.columnsSize() >= 1 : entry.columnsSize();
+                if (index == 0) {
+                    this.parseVertex(col.value, vertex);
+                } else {
+                    this.parseVertexOlap(col.value, vertex);
+                }
             }
         }
 
         return vertex;
+    }
+
+    @Override
+    public BackendEntry writeOlapProperty(HugeType type, Id vertex,
+                                          PropertyKey propertyKey,
+                                          Object value) {
+        BinaryBackendEntry entry = newBackendEntry(type, vertex);
+        BytesBuffer buffer = BytesBuffer.allocate(16);
+        buffer.writeVInt(SchemaElement.schemaId(propertyKey.id()));
+        buffer.writeProperty(propertyKey, value);
+
+        // Fill column
+        byte[] name = this.keyWithIdPrefix ? entry.id().asBytes() : EMPTY_BYTES;
+        entry.column(name, buffer.bytes());
+
+        return entry;
     }
 
     @Override
@@ -935,19 +963,20 @@ public class BinarySerializer extends AbstractSerializer {
 
         private BinaryBackendEntry entry;
 
-        public BinaryBackendEntry writeVertexLabel(VertexLabel schema) {
-            this.entry = newBackendEntry(schema);
-            writeString(HugeKeys.NAME, schema.name());
-            writeEnum(HugeKeys.ID_STRATEGY, schema.idStrategy());
-            writeIds(HugeKeys.PROPERTIES, schema.properties());
-            writeIds(HugeKeys.PRIMARY_KEYS, schema.primaryKeys());
-            writeIds(HugeKeys.NULLABLE_KEYS, schema.nullableKeys());
-            writeIds(HugeKeys.INDEX_LABELS, schema.indexLabels());
-            writeBool(HugeKeys.ENABLE_LABEL_INDEX, schema.enableLabelIndex());
-            writeEnum(HugeKeys.STATUS, schema.status());
-            writeLong(HugeKeys.TTL, schema.ttl());
-            writeId(HugeKeys.TTL_START_TIME, schema.ttlStartTime());
-            writeUserdata(schema);
+        public BinaryBackendEntry writeVertexLabel(VertexLabel vertexLabel) {
+            this.entry = newBackendEntry(vertexLabel);
+            writeString(HugeKeys.NAME, vertexLabel.name());
+            writeEnum(HugeKeys.ID_STRATEGY, vertexLabel.idStrategy());
+            writeIds(HugeKeys.PROPERTIES, vertexLabel.properties());
+            writeIds(HugeKeys.PRIMARY_KEYS, vertexLabel.primaryKeys());
+            writeIds(HugeKeys.NULLABLE_KEYS, vertexLabel.nullableKeys());
+            writeIds(HugeKeys.INDEX_LABELS, vertexLabel.indexLabels());
+            writeBool(HugeKeys.ENABLE_LABEL_INDEX,
+                      vertexLabel.enableLabelIndex());
+            writeEnum(HugeKeys.STATUS, vertexLabel.status());
+            writeLong(HugeKeys.TTL, vertexLabel.ttl());
+            writeId(HugeKeys.TTL_START_TIME, vertexLabel.ttlStartTime());
+            writeUserdata(vertexLabel);
             return this.entry;
         }
 
@@ -973,21 +1002,22 @@ public class BinarySerializer extends AbstractSerializer {
             return vertexLabel;
         }
 
-        public BinaryBackendEntry writeEdgeLabel(EdgeLabel schema) {
-            this.entry = newBackendEntry(schema);
-            writeString(HugeKeys.NAME, schema.name());
-            writeId(HugeKeys.SOURCE_LABEL, schema.sourceLabel());
-            writeId(HugeKeys.TARGET_LABEL, schema.targetLabel());
-            writeEnum(HugeKeys.FREQUENCY, schema.frequency());
-            writeIds(HugeKeys.PROPERTIES, schema.properties());
-            writeIds(HugeKeys.SORT_KEYS, schema.sortKeys());
-            writeIds(HugeKeys.NULLABLE_KEYS, schema.nullableKeys());
-            writeIds(HugeKeys.INDEX_LABELS, schema.indexLabels());
-            writeBool(HugeKeys.ENABLE_LABEL_INDEX, schema.enableLabelIndex());
-            writeEnum(HugeKeys.STATUS, schema.status());
-            writeLong(HugeKeys.TTL, schema.ttl());
-            writeId(HugeKeys.TTL_START_TIME, schema.ttlStartTime());
-            writeUserdata(schema);
+        public BinaryBackendEntry writeEdgeLabel(EdgeLabel edgeLabel) {
+            this.entry = newBackendEntry(edgeLabel);
+            writeString(HugeKeys.NAME, edgeLabel.name());
+            writeId(HugeKeys.SOURCE_LABEL, edgeLabel.sourceLabel());
+            writeId(HugeKeys.TARGET_LABEL, edgeLabel.targetLabel());
+            writeEnum(HugeKeys.FREQUENCY, edgeLabel.frequency());
+            writeIds(HugeKeys.PROPERTIES, edgeLabel.properties());
+            writeIds(HugeKeys.SORT_KEYS, edgeLabel.sortKeys());
+            writeIds(HugeKeys.NULLABLE_KEYS, edgeLabel.nullableKeys());
+            writeIds(HugeKeys.INDEX_LABELS, edgeLabel.indexLabels());
+            writeBool(HugeKeys.ENABLE_LABEL_INDEX,
+                      edgeLabel.enableLabelIndex());
+            writeEnum(HugeKeys.STATUS, edgeLabel.status());
+            writeLong(HugeKeys.TTL, edgeLabel.ttl());
+            writeId(HugeKeys.TTL_START_TIME, edgeLabel.ttlStartTime());
+            writeUserdata(edgeLabel);
             return this.entry;
         }
 
@@ -1014,15 +1044,16 @@ public class BinarySerializer extends AbstractSerializer {
             return edgeLabel;
         }
 
-        public BinaryBackendEntry writePropertyKey(PropertyKey schema) {
-            this.entry = newBackendEntry(schema);
-            writeString(HugeKeys.NAME, schema.name());
-            writeEnum(HugeKeys.DATA_TYPE, schema.dataType());
-            writeEnum(HugeKeys.CARDINALITY, schema.cardinality());
-            writeEnum(HugeKeys.AGGREGATE_TYPE, schema.aggregateType());
-            writeIds(HugeKeys.PROPERTIES, schema.properties());
-            writeEnum(HugeKeys.STATUS, schema.status());
-            writeUserdata(schema);
+        public BinaryBackendEntry writePropertyKey(PropertyKey propertyKey) {
+            this.entry = newBackendEntry(propertyKey);
+            writeString(HugeKeys.NAME, propertyKey.name());
+            writeEnum(HugeKeys.DATA_TYPE, propertyKey.dataType());
+            writeEnum(HugeKeys.CARDINALITY, propertyKey.cardinality());
+            writeEnum(HugeKeys.AGGREGATE_TYPE, propertyKey.aggregateType());
+            writeBool(HugeKeys.OLAP, propertyKey.olap());
+            writeIds(HugeKeys.PROPERTIES, propertyKey.properties());
+            writeEnum(HugeKeys.STATUS, propertyKey.status());
+            writeUserdata(propertyKey);
             return this.entry;
         }
 
@@ -1039,21 +1070,22 @@ public class BinarySerializer extends AbstractSerializer {
                                              Cardinality.class));
             propertyKey.aggregateType(readEnum(HugeKeys.AGGREGATE_TYPE,
                                                AggregateType.class));
+            propertyKey.olap(readBool(HugeKeys.OLAP));
             propertyKey.properties(readIds(HugeKeys.PROPERTIES));
             propertyKey.status(readEnum(HugeKeys.STATUS, SchemaStatus.class));
             readUserdata(propertyKey);
             return propertyKey;
         }
 
-        public BinaryBackendEntry writeIndexLabel(IndexLabel schema) {
-            this.entry = newBackendEntry(schema);
-            writeString(HugeKeys.NAME, schema.name());
-            writeEnum(HugeKeys.BASE_TYPE, schema.baseType());
-            writeId(HugeKeys.BASE_VALUE, schema.baseValue());
-            writeEnum(HugeKeys.INDEX_TYPE, schema.indexType());
-            writeIds(HugeKeys.FIELDS, schema.indexFields());
-            writeEnum(HugeKeys.STATUS, schema.status());
-            writeUserdata(schema);
+        public BinaryBackendEntry writeIndexLabel(IndexLabel indexLabel) {
+            this.entry = newBackendEntry(indexLabel);
+            writeString(HugeKeys.NAME, indexLabel.name());
+            writeEnum(HugeKeys.BASE_TYPE, indexLabel.baseType());
+            writeId(HugeKeys.BASE_VALUE, indexLabel.baseValue());
+            writeEnum(HugeKeys.INDEX_TYPE, indexLabel.indexType());
+            writeIds(HugeKeys.FIELDS, indexLabel.indexFields());
+            writeEnum(HugeKeys.STATUS, indexLabel.status());
+            writeUserdata(indexLabel);
             return this.entry;
         }
 

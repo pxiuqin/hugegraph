@@ -24,6 +24,7 @@ import com.baidu.hugegraph.backend.id.Id;
 import com.baidu.hugegraph.backend.query.ConditionQuery;
 import com.baidu.hugegraph.backend.query.Query;
 import com.baidu.hugegraph.backend.store.BackendEntry;
+import com.baidu.hugegraph.schema.PropertyKey;
 import com.baidu.hugegraph.structure.HugeEdge;
 import com.baidu.hugegraph.structure.HugeEdgeProperty;
 import com.baidu.hugegraph.structure.HugeIndex;
@@ -36,6 +37,8 @@ public interface GraphSerializer {
     public BackendEntry writeVertex(HugeVertex vertex);
     public BackendEntry writeVertexProperty(HugeVertexProperty<?> prop);
     public HugeVertex readVertex(HugeGraph graph, BackendEntry entry);
+    public BackendEntry writeOlapProperty(HugeType type, Id vertex,
+                                          PropertyKey pk, Object value);
 
     public BackendEntry writeEdge(HugeEdge edge);
     public BackendEntry writeEdgeProperty(HugeEdgeProperty<?> prop);

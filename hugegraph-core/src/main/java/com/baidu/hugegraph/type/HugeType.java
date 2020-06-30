@@ -46,6 +46,10 @@ public enum HugeType implements SerialEnum {
     AGGR_PROPERTY_V(104, "VP"),
     // Edge aggregate property
     AGGR_PROPERTY_E(105, "EP"),
+    // Olap PageRank property
+    OLAP_PAGERANK(106, "OP"),
+    // Olap connected subgraph property
+    OLAP_CONNECTED(106, "OC"),
     // Edge
     EDGE(120, "E"),
     // Edge's direction is OUT for the specified vertex
