@@ -179,7 +179,7 @@ public class RaftNode {
         }
         // TODO：should sleep or throw exception directly?
         // It may lead many thread sleep, but this is exactly what I want
-        long time = (1L << counter) * 5000;
+        long time = counter * 3000;
         LOG.info("The node {} will sleep {} ms", this.node, time);
         try {
             Thread.sleep(time);
@@ -253,23 +253,24 @@ public class RaftNode {
         @Override
         public void onError(PeerId peer, Status status) {
             LOG.warn("Replicator meet error: {}", status);
-            if (this.isRpcError(status)) {
+            if (this.isWriteBufferOverflow(status)) {
                 // increment busy counter
                 int count = RaftNode.this.busyCounter.incrementAndGet();
                 LOG.info("Busy counter: [{}]", count);
             }
         }
 
-        private boolean isRpcError(Status status) {
-            String expectMsgPrefix = "Fail to send a RPC request";
+        private boolean isWriteBufferOverflow(Status status) {
+            String expectMsg = "maybe write overflow";
             return RaftError.EINTERNAL == status.getRaftError() &&
                    status.getErrorMsg() != null &&
-                   status.getErrorMsg().startsWith(expectMsgPrefix);
+                   status.getErrorMsg().contains(expectMsg);
         }
 
         @Override
         public void onDestroyed(PeerId peer) {
             // pass
+            LOG.warn("The node {} prepare to offline", peer);
         }
     }
 }
